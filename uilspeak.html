@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Word Speaker with Adjustable WPM and Voice Selection</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      padding: 20px;
+      max-width: 600px;
+      margin: auto;
+      position: relative;
+    }
+    #progress {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      font-size: 1.2em;
+      font-weight: bold;
+    }
+    textarea, input, select {
+      width: 100%;
+      font-size: 1.1em;
+      margin-bottom: 10px;
+    }
+    textarea {
+      height: 150px;
+    }
+    button {
+      padding: 10px 20px;
+      font-size: 1em;
+    }
+  </style>
+</head>
+<body>
+  <div id="progress">0/0</div>
+  <h2>🗣️ Word Speaker (Adjustable WPM & Voice)</h2>
+
+  <label for="wordInput">Words (one per line or space‑separated):</label>
+  <textarea id="wordInput" placeholder="e.g., breeze ocean sunlight peace stillness"></textarea>
+
+  <label for="wpmInput">Words Per Minute:</label>
+  <input type="number" id="wpmInput" value="5" min="1" max="60">
+
+  <label for="voiceSelect">Voice Selection:</label>
+  <select id="voiceSelect"></select>
+
+  <button id="playBtn" type="button">▶️ Play</button>
+
+  <script>
+    const synth = window.speechSynthesis;
+    let voices = [];
+
+    function populateVoices() {
+      voices = synth.getVoices();
+      const voiceSelect = document.getElementById('voiceSelect');
+      voiceSelect.innerHTML = '';
+      voices.forEach((voice, i) => {
+        const option = document.createElement('option');
+        option.value = i;
+        option.textContent = `${voice.name} (${voice.lang})`;
+        voiceSelect.appendChild(option);
+      });
+      // Default to a female voice if detected
+      const femaleIndex = voices.findIndex(v => /female|zira|karen|susan|serena/i.test(v.name));
+      if (femaleIndex >= 0) {
+        voiceSelect.value = femaleIndex;
+      }
+    }
+
+    synth.addEventListener('voiceschanged', populateVoices);
+    populateVoices();
+
+    const playBtn = document.getElementById('playBtn');
+    const wordInput = document.getElementById('wordInput');
+    const wpmInput  = document.getElementById('wpmInput');
+    const progressDiv = document.getElementById('progress');
+
+    playBtn.addEventListener('click', speakWords);
+
+    function speakWords() {
+      // Stop any current speech and clear the queue
+      synth.cancel();
+
+      const raw = wordInput.value.trim();
+      const wpm = parseInt(wpmInput.value, 10) || 5;
+      const words = raw ? raw.split(/\s+/) : [];
+      const total = words.length;
+
+      // Reset progress counter
+      progressDiv.textContent = `0/${total}`;
+
+      if (!total || wpm <= 0) return;
+
+      const delayBetweenWords = 60000 / wpm;
+
+      function speakUtterance(text) {
+        return new Promise(resolve => {
+          const utt = new SpeechSynthesisUtterance(text);
+          const selectedVoice = voices[document.getElementById('voiceSelect').value];
+          if (selectedVoice) utt.voice = selectedVoice;
+          utt.rate = 1;
+          utt.onend = resolve;
+          synth.speak(utt);
+        });
+      }
+
+      (async () => {
+        for (let i = 0; i < total; i++) {
+          const word = words[i];
+
+          // Update progress
+          progressDiv.textContent = `${i + 1}/${total}`;
+
+          const start = Date.now();
+
+          await speakUtterance(word);
+          await new Promise(r => setTimeout(r, 1000));
+          await speakUtterance(word);
+
+          const elapsed = Date.now() - start;
+          const remaining = delayBetweenWords - elapsed;
+          if (remaining > 0) {
+            await new Promise(r => setTimeout(r, remaining));
+          }
+        }
+      })();
+    }
+  </script>
+</body>
+</html>
